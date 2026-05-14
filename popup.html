@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Fullscreen Zoom</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <h1>전체화면 배율</h1>
+      <p class="description">유튜브 전체화면에서 영상 확대·축소 비율을 조정합니다.</p>
+
+      <label class="field" for="zoomRange">
+        <span>배율</span>
+        <output id="zoomValue" for="zoomRange">100%</output>
+      </label>
+
+      <input id="zoomRange" type="range" min="50" max="150" step="1" value="100">
+
+      <div class="presets">
+        <button type="button" data-zoom="80">80%</button>
+        <button type="button" data-zoom="90">90%</button>
+        <button type="button" data-zoom="100">100%</button>
+        <button type="button" data-zoom="110">110%</button>
+        <button type="button" data-zoom="120">120%</button>
+      </div>
+
+      <label class="toggle">
+        <input id="enableToggle" type="checkbox" checked>
+        <span>확장프로그램 켜기</span>
+      </label>
+
+      <button id="resetButton" class="reset" type="button">기본값으로 복원</button>
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
