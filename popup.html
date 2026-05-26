@@ -8,8 +8,8 @@
   </head>
   <body>
     <main class="panel">
-      <h1>전체화면 배율</h1>
-      <p class="description">유튜브 전체화면에서 영상 확대·축소 비율을 조정합니다.</p>
+      <h1>영상 배율 조정</h1>
+      <p class="description">YouTube 영상의 확대, 축소, 위치 이동 기능을 설정합니다.</p>
 
       <label class="field" for="zoomRange">
         <span>배율</span>
@@ -29,6 +29,14 @@
       <label class="toggle">
         <input id="enableToggle" type="checkbox" checked>
         <span>확장프로그램 켜기</span>
+      </label>
+
+      <label class="toggle toggle-column">
+        <span class="toggle-copy">
+          <strong>로그아웃 방지</strong>
+          <small>계정 메뉴의 로그아웃 버튼을 잠시 막아 실수 클릭을 줄입니다.</small>
+        </span>
+        <input id="logoutGuardToggle" type="checkbox">
       </label>
 
       <button id="resetButton" class="reset" type="button">기본값으로 복원</button>

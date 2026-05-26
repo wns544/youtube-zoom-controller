@@ -76,6 +76,26 @@ h1 {
   font-size: 14px;
 }
 
+.toggle-column {
+  align-items: flex-start;
+}
+
+.toggle-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toggle-copy strong {
+  font-size: 14px;
+}
+
+.toggle-copy small {
+  color: #6f6158;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .toggle input {
   width: 18px;
   height: 18px;

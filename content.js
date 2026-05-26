@@ -3,16 +3,22 @@ const DEFAULT_SETTINGS = {
   enabled: true,
   zoomPercent: 100,
   offsetX: 0,
-  offsetY: 0
+  offsetY: 0,
+  logoutGuardEnabled: false
 };
 const STYLE_ID = "yt-fullscreen-zoom-style";
 const BUTTON_STYLE_ID = "yt-fullscreen-zoom-button-style";
+const LOGOUT_STYLE_ID = "yt-logout-guard-style";
 const BUTTON_CLASS = "ytp-button yt-zoom-button";
-const BUTTON_TITLE = "전체화면 배율 조절";
+const BUTTON_TITLE = "영상 배율 조절";
 const ZOOM_STEPS = [65, 75, 80, 90, 100, 110, 120, 130];
 const MOVE_STEP = 20;
 const PAGE_HOOK_ID = "yt-fullscreen-zoom-page-hook";
 const SHORTCUT_EVENT = "yt-fullscreen-zoom-shortcut";
+const LOGOUT_BLOCK_MESSAGE =
+  "확장프로그램(YouTube Fullscreen Zoom Controller)에 의해 로그아웃이 막혔습니다. 필요하면 설정에서 해제해 주세요.";
+let isApplyingLogoutGuard = false;
+let logoutGuardRefreshTimer = 0;
 
 function clampZoom(value) {
   return Math.min(150, Math.max(50, Number(value) || DEFAULT_SETTINGS.zoomPercent));
@@ -22,15 +28,20 @@ function clampOffset(value) {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-async function readSettings() {
-  const stored = await chrome.storage.sync.get(STORAGE_KEY);
+function normalizeSettings(rawSettings = {}) {
   return {
     ...DEFAULT_SETTINGS,
-    ...(stored[STORAGE_KEY] || {}),
-    zoomPercent: clampZoom(stored[STORAGE_KEY]?.zoomPercent),
-    offsetX: clampOffset(stored[STORAGE_KEY]?.offsetX),
-    offsetY: clampOffset(stored[STORAGE_KEY]?.offsetY)
+    ...rawSettings,
+    zoomPercent: clampZoom(rawSettings.zoomPercent),
+    offsetX: clampOffset(rawSettings.offsetX),
+    offsetY: clampOffset(rawSettings.offsetY),
+    logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled)
   };
+}
+
+async function readSettings() {
+  const stored = await chrome.storage.sync.get(STORAGE_KEY);
+  return normalizeSettings(stored[STORAGE_KEY] || {});
 }
 
 function ensureStyleElement() {
@@ -64,6 +75,38 @@ function ensureButtonStyle() {
       .ytp-button.yt-zoom-button .yt-zoom-label {
         display: inline-block;
         line-height: 36px;
+      }
+    `;
+    document.documentElement.appendChild(style);
+  }
+
+  return style;
+}
+
+function ensureLogoutGuardStyle() {
+  let style = document.getElementById(LOGOUT_STYLE_ID);
+
+  if (!style) {
+    style = document.createElement("style");
+    style.id = LOGOUT_STYLE_ID;
+    style.textContent = `
+      .yt-logout-guarded {
+        opacity: 0.52 !important;
+        cursor: not-allowed !important;
+      }
+
+      .yt-logout-guarded * {
+        cursor: not-allowed !important;
+      }
+
+      .yt-logout-guard-note {
+        margin: 4px 16px 10px 56px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(204, 75, 25, 0.12);
+        color: #8b3411;
+        font-size: 12px;
+        line-height: 1.4;
       }
     `;
     document.documentElement.appendChild(style);
@@ -111,12 +154,7 @@ function applySettings(settings) {
 }
 
 async function saveSettings(nextSettings) {
-  const settings = {
-    enabled: Boolean(nextSettings.enabled),
-    zoomPercent: clampZoom(nextSettings.zoomPercent),
-    offsetX: clampOffset(nextSettings.offsetX),
-    offsetY: clampOffset(nextSettings.offsetY)
-  };
+  const settings = normalizeSettings(nextSettings);
 
   await chrome.storage.sync.set({
     [STORAGE_KEY]: settings
@@ -377,6 +415,103 @@ function createZoomButton(zoomPercent) {
   return button;
 }
 
+function isLogoutLabel(text) {
+  const normalized = text.replace(/\s+/g, " ").trim().toLowerCase();
+  return normalized === "로그아웃" || normalized === "sign out";
+}
+
+function findLogoutMenuItems() {
+  const candidates = document.querySelectorAll(
+    "tp-yt-paper-item, ytd-compact-link-renderer, ytd-compact-service-item-renderer, ytd-menu-service-item-renderer"
+  );
+
+  const items = new Set();
+
+  Array.from(candidates)
+    .filter((element) => isLogoutLabel(element.textContent || ""))
+    .forEach((element) => {
+      const renderer =
+        element.closest("ytd-compact-link-renderer") ||
+        element.closest("ytd-compact-service-item-renderer") ||
+        element.closest("ytd-menu-service-item-renderer") ||
+        element.closest("tp-yt-paper-item") ||
+        element;
+
+      items.add(renderer);
+    });
+
+  return Array.from(items);
+}
+
+function clearLogoutGuardUI() {
+  document.querySelectorAll(".yt-logout-guard-note").forEach((note) => note.remove());
+  document.querySelectorAll("[data-logout-guard-note='true']").forEach((note) => note.remove());
+  document.querySelectorAll(".yt-logout-guarded").forEach((item) => {
+    item.classList.remove("yt-logout-guarded");
+    item.removeAttribute("aria-disabled");
+    item.removeAttribute("data-logout-guarded");
+  });
+}
+
+function applyLogoutGuard(settings) {
+  isApplyingLogoutGuard = true;
+  ensureLogoutGuardStyle();
+  clearLogoutGuardUI();
+
+  try {
+    if (!settings.logoutGuardEnabled) {
+      return;
+    }
+
+    findLogoutMenuItems().forEach((item) => {
+      const nextElement = item.nextElementSibling;
+      if (nextElement?.dataset.logoutGuardNote === "true") {
+        nextElement.remove();
+      }
+
+      item.classList.add("yt-logout-guarded");
+      item.setAttribute("aria-disabled", "true");
+      item.dataset.logoutGuarded = "true";
+
+      const note = document.createElement("div");
+      note.className = "yt-logout-guard-note";
+      note.dataset.logoutGuardNote = "true";
+      note.textContent = LOGOUT_BLOCK_MESSAGE;
+      item.insertAdjacentElement("afterend", note);
+    });
+  } finally {
+    window.setTimeout(() => {
+      isApplyingLogoutGuard = false;
+    }, 0);
+  }
+}
+
+function handleLogoutGuardClick(event) {
+  const blockedItem = event.target.closest("[data-logout-guarded='true']");
+  if (!blockedItem) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+}
+
+function scheduleLogoutGuardRefresh() {
+  if (isApplyingLogoutGuard) {
+    return;
+  }
+
+  window.clearTimeout(logoutGuardRefreshTimer);
+  logoutGuardRefreshTimer = window.setTimeout(() => {
+    readSettings()
+      .then((settings) => {
+        applyLogoutGuard(settings);
+      })
+      .catch(() => {});
+  }, 80);
+}
+
 async function syncButtons() {
   const settings = await readSettings();
   document.querySelectorAll(".yt-zoom-button").forEach((button) => {
@@ -399,7 +534,6 @@ function mountZoomButton() {
   }
 
   const button = createZoomButton(DEFAULT_SETTINGS.zoomPercent);
-
   const firstChild = rightControls.firstElementChild;
 
   if (firstChild && firstChild.parentNode === rightControls) {
@@ -415,6 +549,7 @@ function mountZoomButton() {
 function observePlayerControls() {
   const observer = new MutationObserver(() => {
     mountZoomButton();
+    scheduleLogoutGuardRefresh();
   });
 
   observer.observe(document.documentElement, {
@@ -426,6 +561,7 @@ function observePlayerControls() {
 async function refresh() {
   const settings = await readSettings();
   applySettings(settings);
+  applyLogoutGuard(settings);
   mountZoomButton();
 
   const button = document.querySelector(".yt-zoom-button");
@@ -439,15 +575,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     return;
   }
 
-  const nextValue = {
-    ...DEFAULT_SETTINGS,
-    ...changes[STORAGE_KEY].newValue,
-    zoomPercent: clampZoom(changes[STORAGE_KEY].newValue?.zoomPercent),
-    offsetX: clampOffset(changes[STORAGE_KEY].newValue?.offsetX),
-    offsetY: clampOffset(changes[STORAGE_KEY].newValue?.offsetY)
-  };
+  const nextValue = normalizeSettings(changes[STORAGE_KEY].newValue || {});
 
   applySettings(nextValue);
+  applyLogoutGuard(nextValue);
   syncButtons().catch(() => {});
 });
 
@@ -455,6 +586,8 @@ document.addEventListener("fullscreenchange", () => {
   refresh().catch(() => {});
 });
 document.addEventListener("keydown", handleDirectKeyboardShortcut, true);
+document.addEventListener("click", handleLogoutGuardClick, true);
+document.addEventListener("mouseup", handleLogoutGuardClick, true);
 window.addEventListener("keydown", handleDirectKeyboardShortcut, true);
 window.addEventListener(SHORTCUT_EVENT, handleInjectedShortcut);
 
