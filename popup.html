@@ -9,7 +9,7 @@
   <body>
     <main class="panel">
       <h1>영상 배율 조정</h1>
-      <p class="description">YouTube 영상의 확대, 축소, 위치 이동 기능을 설정합니다.</p>
+      <p class="description">YouTube 영상 확대, 축소, 위치 이동 기능을 설정합니다.</p>
 
       <label class="field" for="zoomRange">
         <span>배율</span>
@@ -34,10 +34,26 @@
       <label class="toggle toggle-column">
         <span class="toggle-copy">
           <strong>로그아웃 방지</strong>
-          <small>계정 메뉴의 로그아웃 버튼을 잠시 막아 실수 클릭을 줄입니다.</small>
+          <small>계정 메뉴의 로그아웃 버튼을 흐리게 만들고 실수 클릭을 줄입니다.</small>
         </span>
         <input id="logoutGuardToggle" type="checkbox">
       </label>
+
+      <label class="toggle toggle-column">
+        <span class="toggle-copy">
+          <strong>자동 음소거 방어</strong>
+          <small>m 키나 음소거 버튼을 누른 경우 외에는 YouTube의 음소거/볼륨 0 변경을 차단합니다.</small>
+        </span>
+        <input id="muteGuardToggle" type="checkbox" checked>
+      </label>
+
+      <section class="mute-log-section" aria-label="최근 자동 음소거 차단 기록">
+        <div class="mute-log-header">
+          <strong>최근 차단 기록</strong>
+          <button id="clearMuteLogsButton" type="button">지우기</button>
+        </div>
+        <ol id="muteLogList" class="mute-log-list"></ol>
+      </section>
 
       <button id="resetButton" class="reset" type="button">기본값으로 복원</button>
       <p id="status" class="status" aria-live="polite"></p>

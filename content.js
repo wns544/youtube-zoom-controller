@@ -1,10 +1,12 @@
 const STORAGE_KEY = "fullscreenZoomSettings";
+const MUTE_LOG_STORAGE_KEY = "ytMuteAutoWatchLogs";
 const DEFAULT_SETTINGS = {
   enabled: true,
   zoomPercent: 100,
   offsetX: 0,
   offsetY: 0,
-  logoutGuardEnabled: false
+  logoutGuardEnabled: false,
+  muteGuardEnabled: true
 };
 const STYLE_ID = "yt-fullscreen-zoom-style";
 const BUTTON_STYLE_ID = "yt-fullscreen-zoom-button-style";
@@ -15,6 +17,8 @@ const ZOOM_STEPS = [65, 75, 80, 90, 100, 110, 120, 130];
 const MOVE_STEP = 20;
 const PAGE_HOOK_ID = "yt-fullscreen-zoom-page-hook";
 const SHORTCUT_EVENT = "yt-fullscreen-zoom-shortcut";
+const MUTE_SETTINGS_EVENT = "yt-mute-auto-watch-settings";
+const MUTE_LOG_EVENT = "yt-mute-auto-watch-log";
 const LOGOUT_BLOCK_MESSAGE =
   "확장프로그램(YouTube Fullscreen Zoom Controller)에 의해 로그아웃이 막혔습니다. 필요하면 설정에서 해제해 주세요.";
 let isApplyingLogoutGuard = false;
@@ -35,7 +39,8 @@ function normalizeSettings(rawSettings = {}) {
     zoomPercent: clampZoom(rawSettings.zoomPercent),
     offsetX: clampOffset(rawSettings.offsetX),
     offsetY: clampOffset(rawSettings.offsetY),
-    logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled)
+    logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
+    muteGuardEnabled: rawSettings.muteGuardEnabled !== false
   };
 }
 
@@ -151,6 +156,36 @@ function applySettings(settings) {
       transform-origin: center center !important;
     }
   `;
+}
+
+function syncMuteGuardSettings(settings) {
+  window.dispatchEvent(new CustomEvent(MUTE_SETTINGS_EVENT, {
+    detail: {
+      autoUnmute: settings.muteGuardEnabled !== false
+    }
+  }));
+}
+
+async function recordMuteGuardLog(event) {
+  const detail = event.detail || {};
+  if (!detail.entry) {
+    return;
+  }
+
+  const stored = await chrome.storage.local.get(MUTE_LOG_STORAGE_KEY);
+  const logs = Array.isArray(stored[MUTE_LOG_STORAGE_KEY]) ? stored[MUTE_LOG_STORAGE_KEY] : [];
+  logs.unshift({
+    entry: String(detail.entry),
+    message: String(detail.message || ""),
+    timestamp: Number(detail.timestamp) || Date.now(),
+    autoUnmute: detail.autoUnmute !== false,
+    url: location.href
+  });
+  logs.length = Math.min(logs.length, 40);
+
+  await chrome.storage.local.set({
+    [MUTE_LOG_STORAGE_KEY]: logs
+  });
 }
 
 async function saveSettings(nextSettings) {
@@ -568,6 +603,8 @@ async function refresh() {
   if (button) {
     updateButtonLabel(button, settings.zoomPercent);
   }
+
+  return settings;
 }
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -578,6 +615,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   const nextValue = normalizeSettings(changes[STORAGE_KEY].newValue || {});
 
   applySettings(nextValue);
+  syncMuteGuardSettings(nextValue);
   applyLogoutGuard(nextValue);
   syncButtons().catch(() => {});
 });
@@ -590,7 +628,14 @@ document.addEventListener("click", handleLogoutGuardClick, true);
 document.addEventListener("mouseup", handleLogoutGuardClick, true);
 window.addEventListener("keydown", handleDirectKeyboardShortcut, true);
 window.addEventListener(SHORTCUT_EVENT, handleInjectedShortcut);
+window.addEventListener(MUTE_LOG_EVENT, (event) => {
+  recordMuteGuardLog(event).catch(() => {});
+});
 
 injectPageShortcutHook();
 observePlayerControls();
-refresh().catch(() => {});
+refresh()
+  .then((settings) => {
+    syncMuteGuardSettings(settings);
+  })
+  .catch(() => {});

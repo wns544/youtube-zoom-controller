@@ -5,7 +5,7 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 340px;
   background: linear-gradient(180deg, #fffaf3 0%, #f8f1e7 100%);
   color: #1f1a17;
 }
@@ -105,6 +105,56 @@ h1 {
 .reset {
   width: 100%;
   padding: 10px 12px;
+}
+
+.mute-log-section {
+  margin: 0 0 16px;
+  padding: 10px;
+  border: 1px solid #ead1c3;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.mute-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.mute-log-header button {
+  border: 1px solid #d4b9aa;
+  border-radius: 6px;
+  background: #fff;
+  color: #2e241f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.mute-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 118px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.mute-log-list li {
+  color: #5d4f48;
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.mute-log-list .empty {
+  color: #8a7a70;
 }
 
 .status {
