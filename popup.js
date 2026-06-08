@@ -6,7 +6,8 @@ const DEFAULT_SETTINGS = {
   offsetX: 0,
   offsetY: 0,
   logoutGuardEnabled: false,
-  muteGuardEnabled: true
+  muteGuardEnabled: true,
+  pauseGuardEnabled: true
 };
 
 const zoomRange = document.getElementById("zoomRange");
@@ -14,6 +15,7 @@ const zoomValue = document.getElementById("zoomValue");
 const enableToggle = document.getElementById("enableToggle");
 const logoutGuardToggle = document.getElementById("logoutGuardToggle");
 const muteGuardToggle = document.getElementById("muteGuardToggle");
+const pauseGuardToggle = document.getElementById("pauseGuardToggle");
 const muteLogList = document.getElementById("muteLogList");
 const clearMuteLogsButton = document.getElementById("clearMuteLogsButton");
 const resetButton = document.getElementById("resetButton");
@@ -32,7 +34,8 @@ function normalizeSettings(rawSettings = {}) {
     offsetX: Number.isFinite(Number(rawSettings.offsetX)) ? Number(rawSettings.offsetX) : 0,
     offsetY: Number.isFinite(Number(rawSettings.offsetY)) ? Number(rawSettings.offsetY) : 0,
     logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
-    muteGuardEnabled: rawSettings.muteGuardEnabled !== false
+    muteGuardEnabled: rawSettings.muteGuardEnabled !== false,
+    pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false
   };
 }
 
@@ -42,6 +45,7 @@ function render(settings) {
   enableToggle.checked = settings.enabled;
   logoutGuardToggle.checked = Boolean(settings.logoutGuardEnabled);
   muteGuardToggle.checked = settings.muteGuardEnabled !== false;
+  pauseGuardToggle.checked = settings.pauseGuardEnabled !== false;
 }
 
 function showStatus(message) {
@@ -112,7 +116,8 @@ async function init() {
       enabled: enableToggle.checked,
       zoomPercent: event.target.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked
+      muteGuardEnabled: muteGuardToggle.checked,
+      pauseGuardEnabled: pauseGuardToggle.checked
     });
   });
 
@@ -121,7 +126,8 @@ async function init() {
       enabled: enableToggle.checked,
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked
+      muteGuardEnabled: muteGuardToggle.checked,
+      pauseGuardEnabled: pauseGuardToggle.checked
     });
   });
 
@@ -130,7 +136,8 @@ async function init() {
       enabled: enableToggle.checked,
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked
+      muteGuardEnabled: muteGuardToggle.checked,
+      pauseGuardEnabled: pauseGuardToggle.checked
     });
   });
 
@@ -139,7 +146,18 @@ async function init() {
       enabled: enableToggle.checked,
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked
+      muteGuardEnabled: muteGuardToggle.checked,
+      pauseGuardEnabled: pauseGuardToggle.checked
+    });
+  });
+
+  pauseGuardToggle.addEventListener("change", async () => {
+    await saveSettings({
+      enabled: enableToggle.checked,
+      zoomPercent: zoomRange.value,
+      logoutGuardEnabled: logoutGuardToggle.checked,
+      muteGuardEnabled: muteGuardToggle.checked,
+      pauseGuardEnabled: pauseGuardToggle.checked
     });
   });
 
@@ -161,7 +179,8 @@ async function init() {
         enabled: enableToggle.checked,
         zoomPercent: button.dataset.zoom,
         logoutGuardEnabled: logoutGuardToggle.checked,
-        muteGuardEnabled: muteGuardToggle.checked
+        muteGuardEnabled: muteGuardToggle.checked,
+        pauseGuardEnabled: pauseGuardToggle.checked
       });
     });
   });

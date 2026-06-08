@@ -6,7 +6,8 @@ const DEFAULT_SETTINGS = {
   offsetX: 0,
   offsetY: 0,
   logoutGuardEnabled: false,
-  muteGuardEnabled: true
+  muteGuardEnabled: true,
+  pauseGuardEnabled: true
 };
 const STYLE_ID = "yt-fullscreen-zoom-style";
 const BUTTON_STYLE_ID = "yt-fullscreen-zoom-button-style";
@@ -23,6 +24,8 @@ const LOGOUT_BLOCK_MESSAGE =
   "확장프로그램(YouTube Fullscreen Zoom Controller)에 의해 로그아웃이 막혔습니다. 필요하면 설정에서 해제해 주세요.";
 let isApplyingLogoutGuard = false;
 let logoutGuardRefreshTimer = 0;
+let pauseGuardRefreshTimer = 0;
+let lastPausePromptClickAt = 0;
 
 function clampZoom(value) {
   return Math.min(150, Math.max(50, Number(value) || DEFAULT_SETTINGS.zoomPercent));
@@ -40,7 +43,8 @@ function normalizeSettings(rawSettings = {}) {
     offsetX: clampOffset(rawSettings.offsetX),
     offsetY: clampOffset(rawSettings.offsetY),
     logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
-    muteGuardEnabled: rawSettings.muteGuardEnabled !== false
+    muteGuardEnabled: rawSettings.muteGuardEnabled !== false,
+    pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false
   };
 }
 
@@ -547,6 +551,81 @@ function scheduleLogoutGuardRefresh() {
   }, 80);
 }
 
+function matchesContinueWatchingPrompt(text) {
+  const normalized = text.replace(/\s+/g, " ").trim().toLowerCase();
+  return (
+    normalized.includes("동영상이 일시중지") ||
+    normalized.includes("이어서 시청") ||
+    normalized.includes("video paused") ||
+    normalized.includes("continue watching")
+  );
+}
+
+function isContinueButton(element) {
+  const text = (element.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const ariaLabel = (element.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().toLowerCase();
+  return (
+    text === "예" ||
+    text === "yes" ||
+    text.includes("계속") ||
+    text.includes("이어서") ||
+    text.includes("continue") ||
+    ariaLabel.includes("continue") ||
+    ariaLabel.includes("이어서")
+  );
+}
+
+function findContinueWatchingDialog() {
+  const candidates = document.querySelectorAll(
+    "yt-confirm-dialog-renderer, tp-yt-paper-dialog, ytd-popup-container, [role='dialog']"
+  );
+
+  return Array.from(candidates).find((element) => {
+    const text = element.textContent || "";
+    return matchesContinueWatchingPrompt(text);
+  });
+}
+
+function clickContinueWatchingPrompt(settings) {
+  if (!settings.pauseGuardEnabled) {
+    return false;
+  }
+
+  const now = Date.now();
+  if (now - lastPausePromptClickAt < 1200) {
+    return false;
+  }
+
+  const dialog = findContinueWatchingDialog();
+  if (!dialog) {
+    return false;
+  }
+
+  const button =
+    Array.from(dialog.querySelectorAll("button, tp-yt-paper-button, yt-button-renderer, a"))
+      .find(isContinueButton) ||
+    dialog.querySelector("#confirm-button button, #confirm-button, [aria-label*='Continue']");
+
+  if (!button) {
+    return false;
+  }
+
+  lastPausePromptClickAt = now;
+  button.click();
+  return true;
+}
+
+function schedulePauseGuardRefresh() {
+  window.clearTimeout(pauseGuardRefreshTimer);
+  pauseGuardRefreshTimer = window.setTimeout(() => {
+    readSettings()
+      .then((settings) => {
+        clickContinueWatchingPrompt(settings);
+      })
+      .catch(() => {});
+  }, 120);
+}
+
 async function syncButtons() {
   const settings = await readSettings();
   document.querySelectorAll(".yt-zoom-button").forEach((button) => {
@@ -585,6 +664,7 @@ function observePlayerControls() {
   const observer = new MutationObserver(() => {
     mountZoomButton();
     scheduleLogoutGuardRefresh();
+    schedulePauseGuardRefresh();
   });
 
   observer.observe(document.documentElement, {
@@ -617,6 +697,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   applySettings(nextValue);
   syncMuteGuardSettings(nextValue);
   applyLogoutGuard(nextValue);
+  clickContinueWatchingPrompt(nextValue);
   syncButtons().catch(() => {});
 });
 
@@ -637,5 +718,10 @@ observePlayerControls();
 refresh()
   .then((settings) => {
     syncMuteGuardSettings(settings);
+    clickContinueWatchingPrompt(settings);
   })
   .catch(() => {});
+
+window.setInterval(() => {
+  schedulePauseGuardRefresh();
+}, 5000);
