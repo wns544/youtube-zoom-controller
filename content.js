@@ -26,6 +26,7 @@ let isApplyingLogoutGuard = false;
 let logoutGuardRefreshTimer = 0;
 let pauseGuardRefreshTimer = 0;
 let lastPausePromptClickAt = 0;
+let pauseGuardRetryTimer = 0;
 
 function clampZoom(value) {
   return Math.min(150, Math.max(50, Number(value) || DEFAULT_SETTINGS.zoomPercent));
@@ -566,10 +567,14 @@ function isContinueButton(element) {
   const ariaLabel = (element.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim().toLowerCase();
   return (
     text === "예" ||
+    text === "확인" ||
     text === "yes" ||
+    text === "ok" ||
     text.includes("계속") ||
     text.includes("이어서") ||
+    text.includes("시청") ||
     text.includes("continue") ||
+    ariaLabel.includes("확인") ||
     ariaLabel.includes("continue") ||
     ariaLabel.includes("이어서")
   );
@@ -577,12 +582,62 @@ function isContinueButton(element) {
 
 function findContinueWatchingDialog() {
   const candidates = document.querySelectorAll(
-    "yt-confirm-dialog-renderer, tp-yt-paper-dialog, ytd-popup-container, [role='dialog']"
+    "yt-confirm-dialog-renderer, tp-yt-paper-dialog, ytd-popup-container, ytd-popup-container *, [role='dialog']"
   );
 
   return Array.from(candidates).find((element) => {
     const text = element.textContent || "";
     return matchesContinueWatchingPrompt(text);
+  });
+}
+
+function findContinueWatchingButton(dialog) {
+  const preferredSelectors = [
+    "#confirm-button button",
+    "#confirm-button",
+    "yt-button-shape button",
+    "ytd-button-renderer button",
+    "tp-yt-paper-button",
+    "button"
+  ];
+
+  for (const selector of preferredSelectors) {
+    const candidates = Array.from(dialog.querySelectorAll(selector));
+    const match = candidates.find(isContinueButton);
+    if (match) {
+      return match;
+    }
+  }
+
+  return Array.from(document.querySelectorAll("button, tp-yt-paper-button, yt-button-shape button, ytd-button-renderer button"))
+    .find((element) => isContinueButton(element) && matchesContinueWatchingPrompt(element.closest("[role='dialog'], yt-confirm-dialog-renderer, tp-yt-paper-dialog, ytd-popup-container")?.textContent || dialog.textContent || ""));
+}
+
+function dispatchRealClick(element) {
+  const eventOptions = {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window
+  };
+
+  element.focus?.();
+
+  ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
+    const EventConstructor = type.startsWith("pointer") && window.PointerEvent ? PointerEvent : MouseEvent;
+    element.dispatchEvent(new EventConstructor(type, eventOptions));
+  });
+
+  element.click?.();
+}
+
+function resumeVisibleVideos() {
+  document.querySelectorAll("video").forEach((video) => {
+    if (!video.paused) {
+      return;
+    }
+
+    video.play?.().catch(() => {});
   });
 }
 
@@ -601,17 +656,31 @@ function clickContinueWatchingPrompt(settings) {
     return false;
   }
 
-  const button =
-    Array.from(dialog.querySelectorAll("button, tp-yt-paper-button, yt-button-renderer, a"))
-      .find(isContinueButton) ||
-    dialog.querySelector("#confirm-button button, #confirm-button, [aria-label*='Continue']");
+  const button = findContinueWatchingButton(dialog);
 
   if (!button) {
     return false;
   }
 
   lastPausePromptClickAt = now;
-  button.click();
+  dispatchRealClick(button);
+  resumeVisibleVideos();
+  window.clearTimeout(pauseGuardRetryTimer);
+  pauseGuardRetryTimer = window.setTimeout(() => {
+    resumeVisibleVideos();
+    readSettings()
+      .then((nextSettings) => {
+        if (nextSettings.pauseGuardEnabled) {
+          const nextDialog = findContinueWatchingDialog();
+          const nextButton = nextDialog ? findContinueWatchingButton(nextDialog) : null;
+          if (nextButton) {
+            dispatchRealClick(nextButton);
+            resumeVisibleVideos();
+          }
+        }
+      })
+      .catch(() => {});
+  }, 500);
   return true;
 }
 
