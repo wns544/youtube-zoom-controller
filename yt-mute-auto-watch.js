@@ -24,6 +24,7 @@
   const nativeRemoveAttribute = Element.prototype.removeAttribute;
 
   let autoUnmute = true;
+  let previewMute = true;
   let lastUserIntentAt = 0;
   let restoringDepth = 0;
   let panelHidden = true;
@@ -45,6 +46,8 @@
       Boolean(video.closest?.("#movie_player"))
     );
   };
+
+  const isPreviewVideo = (video) => isVideo(video) && !isProtectedPlaybackVideo(video);
 
   const now = () => Date.now();
 
@@ -135,6 +138,18 @@
     );
   };
 
+  const shouldBlockPreviewUnmute = (prop, value, video) => {
+    if (!previewMute || restoringDepth > 0 || !isPreviewVideo(video)) {
+      return false;
+    }
+
+    return (
+      (prop === "muted" && value === false) ||
+      (prop === "defaultMuted" && value === false) ||
+      (prop === "volume" && Number(value) > 0)
+    );
+  };
+
   const shouldBlockMutedAttribute = (video) => {
     if (!autoUnmute || restoringDepth > 0 || !isProtectedPlaybackVideo(video)) {
       return false;
@@ -193,6 +208,37 @@
     return changed;
   };
 
+  const forcePreviewVideoMuted = (video, source) => {
+    if (!previewMute || !isPreviewVideo(video)) {
+      return false;
+    }
+
+    let changed = false;
+
+    withRestore(() => {
+      if (!video.muted) {
+        descriptors.muted?.set?.call(video, true);
+        changed = true;
+      }
+
+      if (!video.defaultMuted) {
+        descriptors.defaultMuted?.set?.call(video, true);
+        changed = true;
+      }
+
+      if (Number(video.volume) !== 0) {
+        descriptors.volume?.set?.call(video, 0);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      pushLog(`PREVIEW MUTED ${source}`);
+    }
+
+    return changed;
+  };
+
   const patchMediaProperty = (prop) => {
     const descriptor = descriptors[prop];
     if (!descriptor?.get || !descriptor?.set || descriptor.set.__ytMuteAutoWatchPatched) {
@@ -202,6 +248,11 @@
     const patchedSet = function patchedMediaSetter(value) {
       if (prop === "volume" && isVideo(this) && Number(value) > 0) {
         rememberAudibleVolume(this);
+      }
+
+      if (shouldBlockPreviewUnmute(prop, value, this)) {
+        forcePreviewVideoMuted(this, prop);
+        return;
       }
 
       if (shouldBlockMute(prop, value, this)) {
@@ -266,10 +317,13 @@
 
     observedVideos.add(video);
     rememberAudibleVolume(video);
+    forcePreviewVideoMuted(video, "observe");
 
     new MutationObserver((mutations) => {
       if (mutations.some((mutation) => mutation.attributeName === "muted")) {
-        restoreVideoIfBlocked(video, "MutationObserver");
+        if (!forcePreviewVideoMuted(video, "MutationObserver")) {
+          restoreVideoIfBlocked(video, "MutationObserver");
+        }
       }
     }).observe(video, {
       attributes: true,
@@ -473,6 +527,14 @@
       autoUnmute = event.detail.autoUnmute;
       pushLog(`AUTO ${autoUnmute ? "ON" : "OFF"} from popup`);
     }
+
+    if (typeof event.detail?.previewMute === "boolean") {
+      previewMute = event.detail.previewMute;
+      pushLog(`PREVIEW ${previewMute ? "MUTE" : "FREE"} from popup`);
+      if (previewMute) {
+        getVideos().forEach((video) => forcePreviewVideoMuted(video, "settings"));
+      }
+    }
   });
 
   if (document.documentElement) {
@@ -494,6 +556,7 @@
     status() {
       return {
         autoUnmute,
+        previewMute,
         "muted setter watching": true,
         userIntentWindowMs: USER_INTENT_WINDOW_MS,
         lastUserIntentAgoMs: lastUserIntentAt ? now() - lastUserIntentAt : null,

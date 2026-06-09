@@ -210,7 +210,8 @@ function applySettings(settings) {
 function syncMuteGuardSettings(settings) {
   window.dispatchEvent(new CustomEvent(MUTE_SETTINGS_EVENT, {
     detail: {
-      autoUnmute: settings.muteGuardEnabled !== false
+      autoUnmute: settings.muteGuardEnabled !== false,
+      previewMute: settings.previewMuteEnabled !== false
     }
   }));
 }

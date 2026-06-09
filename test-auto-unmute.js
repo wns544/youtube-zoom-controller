@@ -324,6 +324,10 @@ const previewVideo = document.createElement("video");
 document.documentElement.appendChild(previewVideo);
 previewVideo.muted = true;
 assert(previewVideo.muted === true, "thumbnail preview videos should not be blocked by main playback mute guard");
+previewVideo.muted = false;
+assert(previewVideo.muted === true, "thumbnail preview videos should stay muted when YouTube tries to unmute them");
+previewVideo.volume = 1;
+assert(previewVideo.volume === 0, "thumbnail preview videos should stay volume=0 when YouTube tries to raise volume");
 
 video.removeAttribute("muted");
 video.volume = 0.8;
