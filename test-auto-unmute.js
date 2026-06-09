@@ -277,6 +277,7 @@ vm.runInContext(
 );
 
 const video = document.createElement("video");
+video.className = "html5-main-video";
 document.documentElement.appendChild(video);
 
 video.volume = 0.6;
@@ -319,10 +320,15 @@ document.dispatchEvent({ type: "click", target: muteButton });
 video.setAttribute("muted", "");
 assert(video.hasAttribute("muted"), "YouTube mute button user intent should allow muted attribute");
 
+const previewVideo = document.createElement("video");
+document.documentElement.appendChild(previewVideo);
+previewVideo.muted = true;
+assert(previewVideo.muted === true, "thumbnail preview videos should not be blocked by main playback mute guard");
+
 video.removeAttribute("muted");
 video.volume = 0.8;
 const thumbnailMuteButton = new Element("button");
-thumbnailMuteButton.setAttribute("aria-label", "미리보기 음소거");
+thumbnailMuteButton.setAttribute("aria-label", "preview mute");
 document.documentElement.appendChild(thumbnailMuteButton);
 document.dispatchEvent({ type: "pointerdown", target: thumbnailMuteButton });
 video.muted = true;

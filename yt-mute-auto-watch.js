@@ -35,6 +35,17 @@
 
   const isVideo = (value) => value instanceof HTMLVideoElement;
 
+  const isProtectedPlaybackVideo = (video) => {
+    if (!isVideo(video)) {
+      return false;
+    }
+
+    return (
+      video.classList?.contains("html5-main-video") ||
+      Boolean(video.closest?.("#movie_player"))
+    );
+  };
+
   const now = () => Date.now();
 
   const hasRecentUserIntent = () => now() - lastUserIntentAt <= USER_INTENT_WINDOW_MS;
@@ -105,7 +116,7 @@
   const isUserMutedVideo = (video) => userMutedVideos.has(video);
 
   const shouldBlockMute = (prop, value, video) => {
-    if (!autoUnmute || restoringDepth > 0 || !isVideo(video)) {
+    if (!autoUnmute || restoringDepth > 0 || !isProtectedPlaybackVideo(video)) {
       return false;
     }
 
@@ -125,7 +136,7 @@
   };
 
   const shouldBlockMutedAttribute = (video) => {
-    if (!autoUnmute || restoringDepth > 0 || !isVideo(video)) {
+    if (!autoUnmute || restoringDepth > 0 || !isProtectedPlaybackVideo(video)) {
       return false;
     }
 
@@ -146,7 +157,7 @@
   };
 
   const restoreVideoIfBlocked = (video, source) => {
-    if (!autoUnmute || !isVideo(video) || hasRecentUserIntent() || isUserMutedVideo(video)) {
+    if (!autoUnmute || !isProtectedPlaybackVideo(video) || hasRecentUserIntent() || isUserMutedVideo(video)) {
       return false;
     }
 
@@ -201,7 +212,7 @@
 
       descriptor.set.call(this, value);
 
-      if (isVideo(this)) {
+      if (isProtectedPlaybackVideo(this)) {
         if (prop === "volume" && Number(value) > 0) {
           rememberAudibleVolume(this);
           userMutedVideos.delete(this);
