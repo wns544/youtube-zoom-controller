@@ -90,6 +90,10 @@ class Element extends EventTarget {
       return this.id === "thumbnail";
     }
 
+    if (/^[a-z0-9-]+$/i.test(selector)) {
+      return this.tagName.toLowerCase() === selector.toLowerCase();
+    }
+
     return false;
   }
 
@@ -313,7 +317,18 @@ function assert(condition, message) {
 
   sandbox.mountNextQueueButtons({ nextQueueEnabled: true });
   const mountedButton = host.querySelector(`.${NEXT_QUEUE_BUTTON_CLASS}`);
-  assert(mountedButton?.textContent === "다음", "enabled next queue should mount a play-next button on video thumbnails");
+  assert(mountedButton?.textContent === "큐+", "enabled next queue should mount an extension queue button on video thumbnails");
+
+  const nativePlaylistHost = document.createElement("ytd-playlist-panel-video-renderer");
+  const nativePlaylistAnchor = document.createElement("a");
+  nativePlaylistAnchor.href = "https://www.youtube.com/watch?v=native123";
+  nativePlaylistHost.appendChild(nativePlaylistAnchor);
+  document.body.appendChild(nativePlaylistHost);
+  sandbox.mountNextQueueButtons({ nextQueueEnabled: true });
+  assert(
+    !nativePlaylistHost.querySelector(`.${NEXT_QUEUE_BUTTON_CLASS}`),
+    "extension queue button should not mount inside YouTube's native playlist panel"
+  );
 
   await sandbox.addVideoToNextQueue(anchor);
   assert(localStorageData.ytNextPlayQueue.length === 1, "adding a video should persist one queued item");

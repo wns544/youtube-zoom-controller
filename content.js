@@ -807,7 +807,7 @@ async function addVideoToNextQueue(anchor, button) {
   if (button) {
     button.textContent = "추가됨";
     window.setTimeout(() => {
-      button.textContent = "다음";
+      button.textContent = "큐+";
     }, 900);
   }
 }
@@ -822,6 +822,10 @@ function findThumbnailHost(anchor) {
 
 function mountNextQueueButton(anchor, settings) {
   if (!settings.nextQueueEnabled || anchor.dataset.nextQueueMounted === "true") {
+    return;
+  }
+
+  if (anchor.closest("ytd-playlist-panel-renderer, ytd-playlist-panel-video-renderer")) {
     return;
   }
 
@@ -844,8 +848,8 @@ function mountNextQueueButton(anchor, settings) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = NEXT_QUEUE_BUTTON_CLASS;
-  button.textContent = "다음";
-  button.title = "다음 영상으로 재생";
+  button.textContent = "큐+";
+  button.title = "확장 큐에 다음 재생으로 추가";
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
