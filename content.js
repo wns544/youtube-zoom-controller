@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS = {
   logoutGuardEnabled: false,
   muteGuardEnabled: true,
   pauseGuardEnabled: true,
-  nextQueueEnabled: true
+  nextQueueEnabled: true,
+  previewMuteEnabled: true
 };
 const STYLE_ID = "yt-fullscreen-zoom-style";
 const BUTTON_STYLE_ID = "yt-fullscreen-zoom-button-style";
@@ -32,6 +33,7 @@ let pauseGuardRefreshTimer = 0;
 let lastPausePromptClickAt = 0;
 let pauseGuardRetryTimer = 0;
 let queueButtonRefreshTimer = 0;
+let previewMuteRefreshTimer = 0;
 let currentVideoWithQueueHandler = null;
 
 function clampZoom(value) {
@@ -52,7 +54,8 @@ function normalizeSettings(rawSettings = {}) {
     logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
     muteGuardEnabled: rawSettings.muteGuardEnabled !== false,
     pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false,
-    nextQueueEnabled: rawSettings.nextQueueEnabled !== false
+    nextQueueEnabled: rawSettings.nextQueueEnabled !== false,
+    previewMuteEnabled: rawSettings.previewMuteEnabled !== false
   };
 }
 
@@ -736,6 +739,48 @@ function schedulePauseGuardRefresh() {
   }, 120);
 }
 
+function isMainPlaybackVideo(video) {
+  return (
+    video.classList?.contains("html5-main-video") ||
+    Boolean(video.closest?.("#movie_player"))
+  );
+}
+
+function mutePreviewVideos(settings) {
+  if (!settings.previewMuteEnabled) {
+    return;
+  }
+
+  document.querySelectorAll("video").forEach((video) => {
+    if (isMainPlaybackVideo(video)) {
+      return;
+    }
+
+    if (!video.muted) {
+      video.muted = true;
+    }
+
+    if (!video.defaultMuted) {
+      video.defaultMuted = true;
+    }
+
+    if (Number(video.volume) !== 0) {
+      video.volume = 0;
+    }
+  });
+}
+
+function schedulePreviewMuteRefresh() {
+  window.clearTimeout(previewMuteRefreshTimer);
+  previewMuteRefreshTimer = window.setTimeout(() => {
+    readSettings()
+      .then((settings) => {
+        mutePreviewVideos(settings);
+      })
+      .catch(() => {});
+  }, 80);
+}
+
 function getVideoIdFromUrl(rawUrl) {
   try {
     const url = new URL(rawUrl, location.origin);
@@ -976,6 +1021,7 @@ function observePlayerControls() {
     scheduleLogoutGuardRefresh();
     schedulePauseGuardRefresh();
     scheduleNextQueueButtonRefresh();
+    schedulePreviewMuteRefresh();
   });
 
   observer.observe(document.documentElement, {
@@ -988,6 +1034,7 @@ async function refresh() {
   const settings = await readSettings();
   applySettings(settings);
   applyLogoutGuard(settings);
+  mutePreviewVideos(settings);
   mountNextQueueButtons(settings);
   attachNextQueuePlaybackHandler();
   mountZoomButton();
@@ -1011,6 +1058,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   syncMuteGuardSettings(nextValue);
   applyLogoutGuard(nextValue);
   clickContinueWatchingPrompt(nextValue);
+  mutePreviewVideos(nextValue);
   mountNextQueueButtons(nextValue);
   attachNextQueuePlaybackHandler();
   syncButtons().catch(() => {});
@@ -1034,6 +1082,7 @@ refresh()
   .then((settings) => {
     syncMuteGuardSettings(settings);
     clickContinueWatchingPrompt(settings);
+    mutePreviewVideos(settings);
     mountNextQueueButtons(settings);
     attachNextQueuePlaybackHandler();
   })
@@ -1042,4 +1091,5 @@ refresh()
 window.setInterval(() => {
   schedulePauseGuardRefresh();
   scheduleNextQueueButtonRefresh();
+  schedulePreviewMuteRefresh();
 }, 5000);

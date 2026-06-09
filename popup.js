@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS = {
   logoutGuardEnabled: false,
   muteGuardEnabled: true,
   pauseGuardEnabled: true,
-  nextQueueEnabled: true
+  nextQueueEnabled: true,
+  previewMuteEnabled: true
 };
 
 const zoomRange = document.getElementById("zoomRange");
@@ -17,6 +18,7 @@ const zoomValue = document.getElementById("zoomValue");
 const enableToggle = document.getElementById("enableToggle");
 const logoutGuardToggle = document.getElementById("logoutGuardToggle");
 const muteGuardToggle = document.getElementById("muteGuardToggle");
+const previewMuteToggle = document.getElementById("previewMuteToggle");
 const pauseGuardToggle = document.getElementById("pauseGuardToggle");
 const nextQueueToggle = document.getElementById("nextQueueToggle");
 const muteLogList = document.getElementById("muteLogList");
@@ -41,7 +43,8 @@ function normalizeSettings(rawSettings = {}) {
     logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
     muteGuardEnabled: rawSettings.muteGuardEnabled !== false,
     pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false,
-    nextQueueEnabled: rawSettings.nextQueueEnabled !== false
+    nextQueueEnabled: rawSettings.nextQueueEnabled !== false,
+    previewMuteEnabled: rawSettings.previewMuteEnabled !== false
   };
 }
 
@@ -51,6 +54,7 @@ function render(settings) {
   enableToggle.checked = settings.enabled;
   logoutGuardToggle.checked = Boolean(settings.logoutGuardEnabled);
   muteGuardToggle.checked = settings.muteGuardEnabled !== false;
+  previewMuteToggle.checked = settings.previewMuteEnabled !== false;
   pauseGuardToggle.checked = settings.pauseGuardEnabled !== false;
   nextQueueToggle.checked = settings.nextQueueEnabled !== false;
 }
@@ -81,6 +85,19 @@ async function saveSettings(nextSettings) {
 
   render(settings);
   showStatus("저장되었습니다.");
+}
+
+function getCurrentControlSettings(overrides = {}) {
+  return {
+    enabled: enableToggle.checked,
+    zoomPercent: zoomRange.value,
+    logoutGuardEnabled: logoutGuardToggle.checked,
+    muteGuardEnabled: muteGuardToggle.checked,
+    previewMuteEnabled: previewMuteToggle.checked,
+    pauseGuardEnabled: pauseGuardToggle.checked,
+    nextQueueEnabled: nextQueueToggle.checked,
+    ...overrides
+  };
 }
 
 function formatLog(log) {
@@ -140,69 +157,31 @@ async function init() {
   await renderNextQueue();
 
   zoomRange.addEventListener("input", async (event) => {
-    await saveSettings({
-      enabled: enableToggle.checked,
-      zoomPercent: event.target.value,
-      logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked,
-      nextQueueEnabled: nextQueueToggle.checked
-    });
+    await saveSettings(getCurrentControlSettings({ zoomPercent: event.target.value }));
   });
 
   enableToggle.addEventListener("change", async () => {
-    await saveSettings({
-      enabled: enableToggle.checked,
-      zoomPercent: zoomRange.value,
-      logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked,
-      nextQueueEnabled: nextQueueToggle.checked
-    });
+    await saveSettings(getCurrentControlSettings());
   });
 
   logoutGuardToggle.addEventListener("change", async () => {
-    await saveSettings({
-      enabled: enableToggle.checked,
-      zoomPercent: zoomRange.value,
-      logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked,
-      nextQueueEnabled: nextQueueToggle.checked
-    });
+    await saveSettings(getCurrentControlSettings());
   });
 
   muteGuardToggle.addEventListener("change", async () => {
-    await saveSettings({
-      enabled: enableToggle.checked,
-      zoomPercent: zoomRange.value,
-      logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked,
-      nextQueueEnabled: nextQueueToggle.checked
-    });
+    await saveSettings(getCurrentControlSettings());
+  });
+
+  previewMuteToggle.addEventListener("change", async () => {
+    await saveSettings(getCurrentControlSettings());
   });
 
   pauseGuardToggle.addEventListener("change", async () => {
-    await saveSettings({
-      enabled: enableToggle.checked,
-      zoomPercent: zoomRange.value,
-      logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked,
-      nextQueueEnabled: nextQueueToggle.checked
-    });
+    await saveSettings(getCurrentControlSettings());
   });
 
   nextQueueToggle.addEventListener("change", async () => {
-    await saveSettings({
-      enabled: enableToggle.checked,
-      zoomPercent: zoomRange.value,
-      logoutGuardEnabled: logoutGuardToggle.checked,
-      muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked,
-      nextQueueEnabled: nextQueueToggle.checked
-    });
+    await saveSettings(getCurrentControlSettings());
   });
 
   clearMuteLogsButton.addEventListener("click", async () => {
@@ -227,14 +206,7 @@ async function init() {
 
   document.querySelectorAll("[data-zoom]").forEach((button) => {
     button.addEventListener("click", async () => {
-      await saveSettings({
-        enabled: enableToggle.checked,
-        zoomPercent: button.dataset.zoom,
-        logoutGuardEnabled: logoutGuardToggle.checked,
-        muteGuardEnabled: muteGuardToggle.checked,
-        pauseGuardEnabled: pauseGuardToggle.checked,
-        nextQueueEnabled: nextQueueToggle.checked
-      });
+      await saveSettings(getCurrentControlSettings({ zoomPercent: button.dataset.zoom }));
     });
   });
 
