@@ -34,6 +34,9 @@ class Element extends EventTarget {
     this.dataset = {};
     this.style = {};
     this.className = "";
+    this.classList = {
+      contains: (className) => this.className.split(/\s+/).includes(className)
+    };
     this.textContent = "";
     this.hidden = false;
   }
@@ -48,6 +51,10 @@ class Element extends EventTarget {
   setAttribute(name, value) {
     this.attributes.set(String(name), String(value));
     notifyAttribute(this, String(name));
+  }
+
+  getAttribute(name) {
+    return this.attributes.get(String(name)) || "";
   }
 
   removeAttribute(name) {
@@ -99,9 +106,16 @@ class Element extends EventTarget {
   }
 
   closest(selector) {
+    const selectors = selector.split(",").map((value) => value.trim());
     let node = this;
     while (node) {
-      if (selector.startsWith(".") && node.className.split(/\s+/).includes(selector.slice(1))) {
+      if (selectors.some((candidate) => {
+        if (candidate.startsWith(".")) {
+          return node.className.split(/\s+/).includes(candidate.slice(1));
+        }
+
+        return node.tagName.toLowerCase() === candidate.toLowerCase();
+      })) {
         return node;
       }
       node = node.parentNode;
@@ -304,6 +318,15 @@ document.documentElement.appendChild(muteButton);
 document.dispatchEvent({ type: "click", target: muteButton });
 video.setAttribute("muted", "");
 assert(video.hasAttribute("muted"), "YouTube mute button user intent should allow muted attribute");
+
+video.removeAttribute("muted");
+video.volume = 0.8;
+const thumbnailMuteButton = new Element("button");
+thumbnailMuteButton.setAttribute("aria-label", "미리보기 음소거");
+document.documentElement.appendChild(thumbnailMuteButton);
+document.dispatchEvent({ type: "pointerdown", target: thumbnailMuteButton });
+video.muted = true;
+assert(video.muted === true, "thumbnail preview mute button should be treated as user mute intent");
 
 const status = window.__ytMuteAutoWatcher.status();
 assert(status.autoUnmute === true, "status should report autoUnmute enabled");

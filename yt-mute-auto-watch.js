@@ -64,6 +64,37 @@
     pushLog(`USER ${source}`);
   };
 
+  const getElementText = (element) => {
+    if (!element) {
+      return "";
+    }
+
+    return [
+      element.getAttribute?.("aria-label"),
+      element.getAttribute?.("title"),
+      element.textContent
+    ].filter(Boolean).join(" ").replace(/\s+/g, " ").trim().toLowerCase();
+  };
+
+  const isMuteControl = (target) => {
+    const button = target?.closest?.(
+      ".ytp-mute-button, button, tp-yt-paper-button, ytd-toggle-button-renderer, yt-icon-button"
+    );
+
+    if (!button) {
+      return false;
+    }
+
+    const text = getElementText(button);
+    return (
+      button.classList?.contains("ytp-mute-button") ||
+      text.includes("mute") ||
+      text.includes("unmute") ||
+      text.includes("음소거") ||
+      text.includes("소리")
+    );
+  };
+
   const rememberAudibleVolume = (video) => {
     const volume = Number(video.volume);
     if (!Number.isNaN(volume) && volume > 0) {
@@ -260,8 +291,7 @@
       return;
     }
 
-    const muteButton = event.target?.closest?.(".ytp-mute-button");
-    if (muteButton) {
+    if (isMuteControl(event.target)) {
       markUserIntent("mute button");
       getVideos().forEach((video) => {
         if (video.muted || Number(video.volume) === 0) {
