@@ -1,5 +1,6 @@
 const STORAGE_KEY = "fullscreenZoomSettings";
 const MUTE_LOG_STORAGE_KEY = "ytMuteAutoWatchLogs";
+const NEXT_QUEUE_STORAGE_KEY = "ytNextPlayQueue";
 const DEFAULT_SETTINGS = {
   enabled: true,
   zoomPercent: 100,
@@ -7,7 +8,8 @@ const DEFAULT_SETTINGS = {
   offsetY: 0,
   logoutGuardEnabled: false,
   muteGuardEnabled: true,
-  pauseGuardEnabled: true
+  pauseGuardEnabled: true,
+  nextQueueEnabled: true
 };
 
 const zoomRange = document.getElementById("zoomRange");
@@ -16,8 +18,11 @@ const enableToggle = document.getElementById("enableToggle");
 const logoutGuardToggle = document.getElementById("logoutGuardToggle");
 const muteGuardToggle = document.getElementById("muteGuardToggle");
 const pauseGuardToggle = document.getElementById("pauseGuardToggle");
+const nextQueueToggle = document.getElementById("nextQueueToggle");
 const muteLogList = document.getElementById("muteLogList");
+const nextQueueList = document.getElementById("nextQueueList");
 const clearMuteLogsButton = document.getElementById("clearMuteLogsButton");
+const clearNextQueueButton = document.getElementById("clearNextQueueButton");
 const resetButton = document.getElementById("resetButton");
 const status = document.getElementById("status");
 
@@ -35,7 +40,8 @@ function normalizeSettings(rawSettings = {}) {
     offsetY: Number.isFinite(Number(rawSettings.offsetY)) ? Number(rawSettings.offsetY) : 0,
     logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
     muteGuardEnabled: rawSettings.muteGuardEnabled !== false,
-    pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false
+    pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false,
+    nextQueueEnabled: rawSettings.nextQueueEnabled !== false
   };
 }
 
@@ -46,6 +52,7 @@ function render(settings) {
   logoutGuardToggle.checked = Boolean(settings.logoutGuardEnabled);
   muteGuardToggle.checked = settings.muteGuardEnabled !== false;
   pauseGuardToggle.checked = settings.pauseGuardEnabled !== false;
+  nextQueueToggle.checked = settings.nextQueueEnabled !== false;
 }
 
 function showStatus(message) {
@@ -106,10 +113,31 @@ async function renderMuteLogs() {
   });
 }
 
+async function renderNextQueue() {
+  const stored = await chrome.storage.local.get(NEXT_QUEUE_STORAGE_KEY);
+  const queue = Array.isArray(stored[NEXT_QUEUE_STORAGE_KEY]) ? stored[NEXT_QUEUE_STORAGE_KEY] : [];
+  nextQueueList.textContent = "";
+
+  if (queue.length === 0) {
+    const item = document.createElement("li");
+    item.className = "empty";
+    item.textContent = "대기 중인 영상이 없습니다.";
+    nextQueueList.appendChild(item);
+    return;
+  }
+
+  queue.slice(0, 8).forEach((queuedVideo, index) => {
+    const item = document.createElement("li");
+    item.textContent = `${index + 1}. ${queuedVideo.title || queuedVideo.url || "YouTube video"}`;
+    nextQueueList.appendChild(item);
+  });
+}
+
 async function init() {
   const settings = await loadSettings();
   render(settings);
   await renderMuteLogs();
+  await renderNextQueue();
 
   zoomRange.addEventListener("input", async (event) => {
     await saveSettings({
@@ -117,7 +145,8 @@ async function init() {
       zoomPercent: event.target.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
       muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked
+      pauseGuardEnabled: pauseGuardToggle.checked,
+      nextQueueEnabled: nextQueueToggle.checked
     });
   });
 
@@ -127,7 +156,8 @@ async function init() {
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
       muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked
+      pauseGuardEnabled: pauseGuardToggle.checked,
+      nextQueueEnabled: nextQueueToggle.checked
     });
   });
 
@@ -137,7 +167,8 @@ async function init() {
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
       muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked
+      pauseGuardEnabled: pauseGuardToggle.checked,
+      nextQueueEnabled: nextQueueToggle.checked
     });
   });
 
@@ -147,7 +178,8 @@ async function init() {
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
       muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked
+      pauseGuardEnabled: pauseGuardToggle.checked,
+      nextQueueEnabled: nextQueueToggle.checked
     });
   });
 
@@ -157,7 +189,19 @@ async function init() {
       zoomPercent: zoomRange.value,
       logoutGuardEnabled: logoutGuardToggle.checked,
       muteGuardEnabled: muteGuardToggle.checked,
-      pauseGuardEnabled: pauseGuardToggle.checked
+      pauseGuardEnabled: pauseGuardToggle.checked,
+      nextQueueEnabled: nextQueueToggle.checked
+    });
+  });
+
+  nextQueueToggle.addEventListener("change", async () => {
+    await saveSettings({
+      enabled: enableToggle.checked,
+      zoomPercent: zoomRange.value,
+      logoutGuardEnabled: logoutGuardToggle.checked,
+      muteGuardEnabled: muteGuardToggle.checked,
+      pauseGuardEnabled: pauseGuardToggle.checked,
+      nextQueueEnabled: nextQueueToggle.checked
     });
   });
 
@@ -167,6 +211,14 @@ async function init() {
     });
     await renderMuteLogs();
     showStatus("차단 기록을 지웠습니다.");
+  });
+
+  clearNextQueueButton.addEventListener("click", async () => {
+    await chrome.storage.local.set({
+      [NEXT_QUEUE_STORAGE_KEY]: []
+    });
+    await renderNextQueue();
+    showStatus("다음 재생 큐를 비웠습니다.");
   });
 
   resetButton.addEventListener("click", async () => {
@@ -180,7 +232,8 @@ async function init() {
         zoomPercent: button.dataset.zoom,
         logoutGuardEnabled: logoutGuardToggle.checked,
         muteGuardEnabled: muteGuardToggle.checked,
-        pauseGuardEnabled: pauseGuardToggle.checked
+        pauseGuardEnabled: pauseGuardToggle.checked,
+        nextQueueEnabled: nextQueueToggle.checked
       });
     });
   });
@@ -188,6 +241,10 @@ async function init() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local" && changes[MUTE_LOG_STORAGE_KEY]) {
       renderMuteLogs().catch(() => {});
+    }
+
+    if (areaName === "local" && changes[NEXT_QUEUE_STORAGE_KEY]) {
+      renderNextQueue().catch(() => {});
     }
   });
 }

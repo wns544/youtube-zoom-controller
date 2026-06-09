@@ -1,5 +1,6 @@
 const STORAGE_KEY = "fullscreenZoomSettings";
 const MUTE_LOG_STORAGE_KEY = "ytMuteAutoWatchLogs";
+const NEXT_QUEUE_STORAGE_KEY = "ytNextPlayQueue";
 const DEFAULT_SETTINGS = {
   enabled: true,
   zoomPercent: 100,
@@ -7,11 +8,14 @@ const DEFAULT_SETTINGS = {
   offsetY: 0,
   logoutGuardEnabled: false,
   muteGuardEnabled: true,
-  pauseGuardEnabled: true
+  pauseGuardEnabled: true,
+  nextQueueEnabled: true
 };
 const STYLE_ID = "yt-fullscreen-zoom-style";
 const BUTTON_STYLE_ID = "yt-fullscreen-zoom-button-style";
 const LOGOUT_STYLE_ID = "yt-logout-guard-style";
+const NEXT_QUEUE_STYLE_ID = "yt-next-play-queue-style";
+const NEXT_QUEUE_BUTTON_CLASS = "yt-next-play-queue-button";
 const BUTTON_CLASS = "ytp-button yt-zoom-button";
 const BUTTON_TITLE = "영상 배율 조절";
 const ZOOM_STEPS = [65, 75, 80, 90, 100, 110, 120, 130];
@@ -27,6 +31,8 @@ let logoutGuardRefreshTimer = 0;
 let pauseGuardRefreshTimer = 0;
 let lastPausePromptClickAt = 0;
 let pauseGuardRetryTimer = 0;
+let queueButtonRefreshTimer = 0;
+let currentVideoWithQueueHandler = null;
 
 function clampZoom(value) {
   return Math.min(150, Math.max(50, Number(value) || DEFAULT_SETTINGS.zoomPercent));
@@ -45,7 +51,8 @@ function normalizeSettings(rawSettings = {}) {
     offsetY: clampOffset(rawSettings.offsetY),
     logoutGuardEnabled: Boolean(rawSettings.logoutGuardEnabled),
     muteGuardEnabled: rawSettings.muteGuardEnabled !== false,
-    pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false
+    pauseGuardEnabled: rawSettings.pauseGuardEnabled !== false,
+    nextQueueEnabled: rawSettings.nextQueueEnabled !== false
   };
 }
 
@@ -117,6 +124,40 @@ function ensureLogoutGuardStyle() {
         color: #8b3411;
         font-size: 12px;
         line-height: 1.4;
+      }
+    `;
+    document.documentElement.appendChild(style);
+  }
+
+  return style;
+}
+
+function ensureNextQueueStyle() {
+  let style = document.getElementById(NEXT_QUEUE_STYLE_ID);
+
+  if (!style) {
+    style = document.createElement("style");
+    style.id = NEXT_QUEUE_STYLE_ID;
+    style.textContent = `
+      .${NEXT_QUEUE_BUTTON_CLASS} {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        z-index: 20;
+        min-width: 42px;
+        height: 26px;
+        padding: 0 8px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 5px;
+        background: rgba(0, 0, 0, 0.82);
+        color: #fff;
+        cursor: pointer;
+        font: 700 12px/24px "Segoe UI", Arial, sans-serif;
+        text-align: center;
+      }
+
+      .${NEXT_QUEUE_BUTTON_CLASS}:hover {
+        background: rgba(204, 75, 25, 0.95);
       }
     `;
     document.documentElement.appendChild(style);
@@ -695,6 +736,202 @@ function schedulePauseGuardRefresh() {
   }, 120);
 }
 
+function getVideoIdFromUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl, location.origin);
+    if (!url.hostname.includes("youtube.com")) {
+      return "";
+    }
+
+    return url.searchParams.get("v") || "";
+  } catch {
+    return "";
+  }
+}
+
+function normalizeWatchUrl(rawUrl) {
+  const videoId = getVideoIdFromUrl(rawUrl);
+  if (!videoId) {
+    return "";
+  }
+
+  return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+}
+
+function getCurrentVideoId() {
+  return getVideoIdFromUrl(location.href);
+}
+
+async function readNextQueue() {
+  const stored = await chrome.storage.local.get(NEXT_QUEUE_STORAGE_KEY);
+  return Array.isArray(stored[NEXT_QUEUE_STORAGE_KEY]) ? stored[NEXT_QUEUE_STORAGE_KEY] : [];
+}
+
+async function writeNextQueue(queue) {
+  await chrome.storage.local.set({
+    [NEXT_QUEUE_STORAGE_KEY]: queue.slice(0, 50)
+  });
+}
+
+function getVideoTitleFromAnchor(anchor) {
+  const card = anchor.closest(
+    "ytd-compact-video-renderer, ytd-video-renderer, ytd-rich-item-renderer, ytd-grid-video-renderer, ytd-playlist-panel-video-renderer"
+  );
+  const titleElement = card?.querySelector("#video-title, yt-formatted-string#video-title, a#video-title");
+  return (
+    titleElement?.textContent?.replace(/\s+/g, " ").trim() ||
+    anchor.getAttribute("title") ||
+    anchor.getAttribute("aria-label") ||
+    "YouTube video"
+  );
+}
+
+async function addVideoToNextQueue(anchor, button) {
+  const url = normalizeWatchUrl(anchor.href);
+  const id = getVideoIdFromUrl(url);
+
+  if (!url || !id || id === getCurrentVideoId()) {
+    return;
+  }
+
+  const queue = await readNextQueue();
+  queue.push({
+    id,
+    url,
+    title: getVideoTitleFromAnchor(anchor),
+    addedAt: Date.now()
+  });
+
+  await writeNextQueue(queue);
+
+  if (button) {
+    button.textContent = "추가됨";
+    window.setTimeout(() => {
+      button.textContent = "다음";
+    }, 900);
+  }
+}
+
+function findThumbnailHost(anchor) {
+  return (
+    anchor.closest("#thumbnail") ||
+    anchor.closest("ytd-thumbnail") ||
+    anchor.parentElement
+  );
+}
+
+function mountNextQueueButton(anchor, settings) {
+  if (!settings.nextQueueEnabled || anchor.dataset.nextQueueMounted === "true") {
+    return;
+  }
+
+  const url = normalizeWatchUrl(anchor.href);
+  const id = getVideoIdFromUrl(url);
+  if (!url || !id || id === getCurrentVideoId()) {
+    return;
+  }
+
+  const host = findThumbnailHost(anchor);
+  if (!host || host.querySelector(`.${NEXT_QUEUE_BUTTON_CLASS}`)) {
+    return;
+  }
+
+  const hostStyle = window.getComputedStyle(host);
+  if (hostStyle.position === "static") {
+    host.style.position = "relative";
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = NEXT_QUEUE_BUTTON_CLASS;
+  button.textContent = "다음";
+  button.title = "다음 영상으로 재생";
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    addVideoToNextQueue(anchor, button).catch(() => {});
+  }, true);
+
+  host.appendChild(button);
+  anchor.dataset.nextQueueMounted = "true";
+}
+
+function clearNextQueueButtons() {
+  document.querySelectorAll(`.${NEXT_QUEUE_BUTTON_CLASS}`).forEach((button) => button.remove());
+  document.querySelectorAll("[data-next-queue-mounted='true']").forEach((anchor) => {
+    delete anchor.dataset.nextQueueMounted;
+  });
+}
+
+function mountNextQueueButtons(settings) {
+  ensureNextQueueStyle();
+
+  if (!settings.nextQueueEnabled) {
+    clearNextQueueButtons();
+    return;
+  }
+
+  const anchors = document.querySelectorAll(
+    "a#thumbnail[href*='/watch'], a.yt-simple-endpoint[href*='/watch?v='], ytd-thumbnail a[href*='/watch?v=']"
+  );
+
+  anchors.forEach((anchor) => {
+    mountNextQueueButton(anchor, settings);
+  });
+}
+
+function scheduleNextQueueButtonRefresh() {
+  window.clearTimeout(queueButtonRefreshTimer);
+  queueButtonRefreshTimer = window.setTimeout(() => {
+    readSettings()
+      .then((settings) => {
+        mountNextQueueButtons(settings);
+        attachNextQueuePlaybackHandler();
+      })
+      .catch(() => {});
+  }, 180);
+}
+
+async function playNextQueuedVideo() {
+  const queue = await readNextQueue();
+  const nextItem = queue.shift();
+
+  if (!nextItem?.url) {
+    return false;
+  }
+
+  await writeNextQueue(queue);
+  location.assign(nextItem.url);
+  return true;
+}
+
+function attachNextQueuePlaybackHandler() {
+  const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
+  if (!video || video === currentVideoWithQueueHandler) {
+    return;
+  }
+
+  if (currentVideoWithQueueHandler) {
+    currentVideoWithQueueHandler.removeEventListener("ended", handleVideoEndedForNextQueue);
+  }
+
+  currentVideoWithQueueHandler = video;
+  video.addEventListener("ended", handleVideoEndedForNextQueue);
+}
+
+function handleVideoEndedForNextQueue() {
+  readSettings()
+    .then((settings) => {
+      if (settings.nextQueueEnabled) {
+        return playNextQueuedVideo();
+      }
+
+      return false;
+    })
+    .catch(() => {});
+}
+
 async function syncButtons() {
   const settings = await readSettings();
   document.querySelectorAll(".yt-zoom-button").forEach((button) => {
@@ -734,6 +971,7 @@ function observePlayerControls() {
     mountZoomButton();
     scheduleLogoutGuardRefresh();
     schedulePauseGuardRefresh();
+    scheduleNextQueueButtonRefresh();
   });
 
   observer.observe(document.documentElement, {
@@ -746,6 +984,8 @@ async function refresh() {
   const settings = await readSettings();
   applySettings(settings);
   applyLogoutGuard(settings);
+  mountNextQueueButtons(settings);
+  attachNextQueuePlaybackHandler();
   mountZoomButton();
 
   const button = document.querySelector(".yt-zoom-button");
@@ -767,6 +1007,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   syncMuteGuardSettings(nextValue);
   applyLogoutGuard(nextValue);
   clickContinueWatchingPrompt(nextValue);
+  mountNextQueueButtons(nextValue);
+  attachNextQueuePlaybackHandler();
   syncButtons().catch(() => {});
 });
 
@@ -788,9 +1030,12 @@ refresh()
   .then((settings) => {
     syncMuteGuardSettings(settings);
     clickContinueWatchingPrompt(settings);
+    mountNextQueueButtons(settings);
+    attachNextQueuePlaybackHandler();
   })
   .catch(() => {});
 
 window.setInterval(() => {
   schedulePauseGuardRefresh();
+  scheduleNextQueueButtonRefresh();
 }, 5000);

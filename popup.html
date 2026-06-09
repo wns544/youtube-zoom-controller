@@ -55,6 +55,22 @@
         <input id="pauseGuardToggle" type="checkbox" checked>
       </label>
 
+      <label class="toggle toggle-column">
+        <span class="toggle-copy">
+          <strong>다음 재생 큐</strong>
+          <small>추천 영상 카드의 다음 버튼을 눌러 현재 영상 뒤에 재생할 영상을 예약합니다.</small>
+        </span>
+        <input id="nextQueueToggle" type="checkbox" checked>
+      </label>
+
+      <section class="mute-log-section" aria-label="다음 재생 큐">
+        <div class="mute-log-header">
+          <strong>다음 재생 큐</strong>
+          <button id="clearNextQueueButton" type="button">비우기</button>
+        </div>
+        <ol id="nextQueueList" class="mute-log-list"></ol>
+      </section>
+
       <section class="mute-log-section" aria-label="최근 자동 음소거 차단 기록">
         <div class="mute-log-header">
           <strong>최근 차단 기록</strong>
