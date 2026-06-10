@@ -328,6 +328,15 @@ previewVideo.muted = false;
 assert(previewVideo.muted === true, "thumbnail preview videos should stay muted when YouTube tries to unmute them");
 previewVideo.volume = 1;
 assert(previewVideo.volume === 0, "thumbnail preview videos should stay volume=0 when YouTube tries to raise volume");
+window.dispatchEvent(new CustomEvent("yt-mute-auto-watch-settings", {
+  detail: {
+    previewMute: false
+  }
+}));
+previewVideo.muted = false;
+previewVideo.volume = 1;
+assert(previewVideo.muted === false, "preview mute toggle off should allow preview videos to unmute");
+assert(previewVideo.volume === 1, "preview mute toggle off should allow preview videos to raise volume");
 
 video.removeAttribute("muted");
 video.volume = 0.8;
