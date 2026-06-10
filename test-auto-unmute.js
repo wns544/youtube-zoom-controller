@@ -338,6 +338,19 @@ previewVideo.volume = 1;
 assert(previewVideo.muted === false, "preview mute toggle off should allow preview videos to unmute");
 assert(previewVideo.volume === 1, "preview mute toggle off should allow preview videos to raise volume");
 
+window.dispatchEvent(new CustomEvent("yt-mute-auto-watch-settings", {
+  detail: {
+    previewMute: true
+  }
+}));
+const feedCard = new Element("ytd-rich-item-renderer");
+const feedPreviewVideo = document.createElement("video");
+feedPreviewVideo.className = "html5-main-video";
+feedCard.appendChild(feedPreviewVideo);
+document.documentElement.appendChild(feedCard);
+feedPreviewVideo.muted = false;
+assert(feedPreviewVideo.muted === true, "feed card html5-main-video should be treated as preview and kept muted");
+
 video.removeAttribute("muted");
 video.volume = 0.8;
 const thumbnailMuteButton = new Element("button");

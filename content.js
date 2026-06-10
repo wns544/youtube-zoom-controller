@@ -741,6 +741,12 @@ function schedulePauseGuardRefresh() {
 }
 
 function isMainPlaybackVideo(video) {
+  if (video.closest?.(
+    "ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer, ytd-reel-item-renderer, ytd-playlist-panel-video-renderer"
+  )) {
+    return false;
+  }
+
   return (
     video.classList?.contains("html5-main-video") ||
     Boolean(video.closest?.("#movie_player"))
