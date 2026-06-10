@@ -747,10 +747,7 @@ function isMainPlaybackVideo(video) {
     return false;
   }
 
-  return (
-    video.classList?.contains("html5-main-video") ||
-    Boolean(video.closest?.("#movie_player"))
-  );
+  return Boolean(video.closest?.("ytd-watch-flexy"));
 }
 
 function mutePreviewVideos(settings) {

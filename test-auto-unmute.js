@@ -278,7 +278,9 @@ vm.runInContext(
 
 const video = document.createElement("video");
 video.className = "html5-main-video";
-document.documentElement.appendChild(video);
+const watchPage = new Element("ytd-watch-flexy");
+watchPage.appendChild(video);
+document.documentElement.appendChild(watchPage);
 
 video.volume = 0.6;
 video.volume = 0;

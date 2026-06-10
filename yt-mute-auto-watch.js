@@ -47,10 +47,7 @@
       return false;
     }
 
-    return (
-      video.classList?.contains("html5-main-video") ||
-      Boolean(video.closest?.("#movie_player"))
-    );
+    return Boolean(video.closest?.("ytd-watch-flexy"));
   };
 
   const isPreviewVideo = (video) => isVideo(video) && !isProtectedPlaybackVideo(video);
