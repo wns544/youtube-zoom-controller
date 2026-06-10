@@ -145,8 +145,7 @@
 
     return (
       (prop === "muted" && value === false) ||
-      (prop === "defaultMuted" && value === false) ||
-      (prop === "volume" && Number(value) > 0)
+      (prop === "defaultMuted" && value === false)
     );
   };
 
@@ -226,10 +225,6 @@
         changed = true;
       }
 
-      if (Number(video.volume) !== 0) {
-        descriptors.volume?.set?.call(video, 0);
-        changed = true;
-      }
     });
 
     if (changed) {

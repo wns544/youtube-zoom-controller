@@ -327,7 +327,7 @@ assert(previewVideo.muted === true, "thumbnail preview videos should not be bloc
 previewVideo.muted = false;
 assert(previewVideo.muted === true, "thumbnail preview videos should stay muted when YouTube tries to unmute them");
 previewVideo.volume = 1;
-assert(previewVideo.volume === 0, "thumbnail preview videos should stay volume=0 when YouTube tries to raise volume");
+assert(previewVideo.volume === 1, "thumbnail preview mute should not block preview playback volume setup");
 window.dispatchEvent(new CustomEvent("yt-mute-auto-watch-settings", {
   detail: {
     previewMute: false

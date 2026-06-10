@@ -765,9 +765,6 @@ function mutePreviewVideos(settings) {
       video.defaultMuted = true;
     }
 
-    if (Number(video.volume) !== 0) {
-      video.volume = 0;
-    }
   });
 }
 
