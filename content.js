@@ -25,6 +25,7 @@ const PAGE_HOOK_ID = "yt-fullscreen-zoom-page-hook";
 const SHORTCUT_EVENT = "yt-fullscreen-zoom-shortcut";
 const MUTE_SETTINGS_EVENT = "yt-mute-auto-watch-settings";
 const MUTE_LOG_EVENT = "yt-mute-auto-watch-log";
+const FULLSCREEN_REPAIR_DELAYS_MS = [120, 450, 1000];
 const LOGOUT_BLOCK_MESSAGE =
   "확장프로그램(YouTube Fullscreen Zoom Controller)에 의해 로그아웃이 막혔습니다. 필요하면 설정에서 해제해 주세요.";
 let isApplyingLogoutGuard = false;
@@ -311,10 +312,46 @@ function isFullscreenPlayerActive() {
   return Boolean(document.fullscreenElement) && Boolean(player?.classList.contains("ytp-fullscreen"));
 }
 
+function isFakeFullscreenPlayerActive() {
+  const player = document.getElementById("movie_player");
+  return Boolean(player?.classList.contains("ytp-fullscreen")) && !document.fullscreenElement;
+}
+
 function isPlayerActive() {
   const player = document.getElementById("movie_player");
   const video = player?.querySelector("video.html5-main-video");
   return Boolean(player && video);
+}
+
+function requestPlayerFullscreen(player) {
+  const request =
+    player?.requestFullscreen ||
+    player?.webkitRequestFullscreen ||
+    player?.mozRequestFullScreen ||
+    player?.msRequestFullscreen;
+
+  if (!request) {
+    return Promise.resolve(false);
+  }
+
+  return Promise.resolve(request.call(player))
+    .then(() => true)
+    .catch(() => false);
+}
+
+function repairFakeFullscreen() {
+  if (!isFakeFullscreenPlayerActive()) {
+    return;
+  }
+
+  const player = document.getElementById("movie_player");
+  requestPlayerFullscreen(player).catch(() => {});
+}
+
+function scheduleFullscreenRepair() {
+  FULLSCREEN_REPAIR_DELAYS_MS.forEach((delay) => {
+    window.setTimeout(repairFakeFullscreen, delay);
+  });
 }
 
 async function moveVideoBy(deltaX, deltaY) {
@@ -479,6 +516,35 @@ function handleDirectKeyboardShortcut(event) {
   }
 
   handleShortcutAction(event.key);
+}
+
+function isFullscreenButtonTarget(target) {
+  return Boolean(target?.closest?.(".ytp-fullscreen-button"));
+}
+
+function isFullscreenKey(event) {
+  return (
+    event.type === "keydown" &&
+    event.code === "KeyF" &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    !isEditableTarget(event.target)
+  );
+}
+
+function handleFullscreenRepairIntent(event) {
+  const isPotentialRepairGesture =
+    isFakeFullscreenPlayerActive() &&
+    !isEditableTarget(event.target) &&
+    (event.type === "click" || event.type === "keydown");
+
+  if (!isPotentialRepairGesture && !isFullscreenKey(event) && !isFullscreenButtonTarget(event.target)) {
+    return;
+  }
+
+  scheduleFullscreenRepair();
 }
 
 function handleInjectedShortcut(event) {
@@ -1069,7 +1135,9 @@ document.addEventListener("fullscreenchange", () => {
   refresh().catch(() => {});
 });
 document.addEventListener("keydown", handleDirectKeyboardShortcut, true);
+document.addEventListener("keydown", handleFullscreenRepairIntent, true);
 document.addEventListener("click", handleLogoutGuardClick, true);
+document.addEventListener("click", handleFullscreenRepairIntent, true);
 document.addEventListener("mouseup", handleLogoutGuardClick, true);
 window.addEventListener("keydown", handleDirectKeyboardShortcut, true);
 window.addEventListener(SHORTCUT_EVENT, handleInjectedShortcut);
